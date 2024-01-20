@@ -6,5 +6,5 @@ Pkg.add("Gurobi")
 Pkg.add("MultiObjectiveAlgorithms")
 Pkg.add("JuMP")
 Pkg.add("Distances")
-Pkg.add("Accessors")
-
+Pkg.add("StatsBase")
+Pkg.add("Combinatorics")
