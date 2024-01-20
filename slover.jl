@@ -10,7 +10,7 @@ using Gurobi
 import MultiObjectiveAlgorithms as MOA
 using LinearAlgebra
 
-include("MOKP.jl")
+include("ndtree.jl")
 
 function exact_solver(knapsack::MultiObjectiveKnapsack)
     model = Model()
@@ -23,7 +23,7 @@ function exact_solver(knapsack::MultiObjectiveKnapsack)
     set_attribute(model, MOI.TimeLimitSec(), 20)
     set_silent(model)
     optimize!(model)
-    print(solution_summary(model))
+    # print(solution_summary(model))
     result_num = result_count(model)
     results = Pareto[]
     for i in 1:result_num

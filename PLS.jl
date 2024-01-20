@@ -8,8 +8,8 @@ using Random
 using LinearAlgebra
 
 
-include("slover.jl")
-include("ndtree.jl")
+include("exhaustive_search.jl")
+# include("slover.jl")
 
 
 function R1(lambda::Vector{Float64}, item::Item, current_capacity::Int, capacity::Int)
@@ -29,7 +29,7 @@ function greedy_solution(knapsack::MultiObjectiveKnapsack, lambda::Vector{Float6
     """
     solution = zeros(Int, knapsack.n)
     current_capacity = 0
-    objective_values = zeros(Float64, knapsack.dimension)
+    objective_values = zeros(Int, knapsack.dimension)
     while current_capacity < knapsack.capacity
         max_ratio = -Inf
         max_index = 0
@@ -134,7 +134,7 @@ function generate_neighbors(p::Pareto, knapsack::MultiObjectiveKnapsack, L::Int)
     residual_knapsack = MultiObjectiveKnapsack(2 * L, knapsack.dimension, residual_capacity, residual_items)
 
     # 生成新的解
-    residual_paretos = exact_solver(residual_knapsack)
+    residual_paretos = exhaustive_search(residual_knapsack)
 
 
     # 将新的解合并到原解中, 生成新的邻居
@@ -159,27 +159,50 @@ function pls(knapsack::MultiObjectiveKnapsack, init_soluation_num::Int, neighbor
     The pareto local search algorithm.
     """
     archive = init_solutions(init_soluation_num, knapsack)
-    P = deepcopy(archive)
-    Pa = deepcopy(archive)
-
+    P = postorder_traversal(archive)
+    Pa = NDTreeNode(Pareto[], zeros(knapsack.dimension), zeros(knapsack.dimension), NDTreeNode[], nothing)
+    while !isempty(P)
+        for p in P
+            neighbors = generate_neighbors(p, knapsack, neighbor_num)
+            for neighbor in neighbors
+                if update_archive!(archive, neighbor)
+                    update_archive!(Pa, neighbor)
+                end
+            end
+        end
+        P = postorder_traversal(Pa)
+        Pa = NDTreeNode(Pareto[], zeros(knapsack.dimension), zeros(knapsack.dimension), NDTreeNode[], nothing)
+    end
+    return archive
 end
 
 function test()
-    knapsack = readfile("./Data/2KP200-TA-0.dat")
-    tree = init_solutions(10, knapsack)
-    s = postorder_traversal(tree)
-    neighbors = generate_neighbors(s[1], knapsack, 4)
-    # check the value in neighbors is correct
-    for neighbor in neighbors
-        # recal_value = sum(knapsack.items[i].values for i in 1:knapsack.n if neighbor.solution[i] == 1)
-        # println(neighbor.solution)
-        # println(recal_value)
-        # println(neighbor.objectives)
-        # @assert neighbor.objectives == recal_value
-        update_archive!(tree, neighbor)
-    end
+    knapsack = readfile("./Data/200_items/2KP200-TA-9.dat")
+    # tree = init_solutions(10, knapsack)
+    # s = postorder_traversal(tree)
+    # neighbors = generate_neighbors(s[1], knapsack, 4)
+    # # check the value in neighbors is correct
+    # for neighbor in neighbors
+    #     # recal_value = sum(knapsack.items[i].values for i in 1:knapsack.n if neighbor.solution[i] == 1)
+    #     # println(neighbor.solution)
+    #     # println(recal_value)
+    #     # println(neighbor.objectives)
+    #     # @assert neighbor.objectives == recal_value
+    #     update_archive!(tree, neighbor)
+    # end
+    # s = postorder_traversal(tree)
+    # println(length(s))
+
+    @time tree = pls(knapsack, 20, 5)
     s = postorder_traversal(tree)
     println(length(s))
+    # 将objective值保存到文件中
+    f = open("200_9.txt", "w")
+    for p in s
+        print(f, p.objectives[1], " ", p.objectives[2], "\n")
+    end
+    close(f)
+
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
