@@ -4,7 +4,7 @@ using Distances
 
 include("MOKP.jl")
 
-mutable struct NDTreeNode
+struct NDTreeNode
     points::Array{Pareto}
     approxIdealPoint::Array{Int}  # Approximate ideal point of this node
     approxNadirPoint::Array{Int}  # Approximate nadir point of this node
@@ -19,14 +19,22 @@ const REQUIRED_CHILDREN_COUNT = 7
 # Algorithm 3: ND-Tree-based update
 function update_archive!(archive::NDTreeNode, point::Pareto)
     if isempty(archive.children) && isempty(archive.points)
-        archive.points = [deepcopy(point)]
-        archive.approxIdealPoint = copy(point.objectives)
-        archive.approxNadirPoint = copy(point.objectives)
+        # archive.points = [deepcopy(point)]
+        # archive.approxIdealPoint = copy(point.objectives)
+        # archive.approxNadirPoint = copy(point.objectives)
+        push!(archive.points, deepcopy(point))
+        for i in 1:length(archive.approxIdealPoint)
+            archive.approxIdealPoint[i] = point.objectives[i]
+            archive.approxNadirPoint[i] = point.objectives[i]
+        end
+        return true
     else
         if update_node!(archive, point)
             insert_node!(archive, point)
+            return true
         end
     end
+    return false
 end
 
 function update_node!(node::NDTreeNode, point::Pareto)
@@ -38,8 +46,10 @@ function update_node!(node::NDTreeNode, point::Pareto)
         # Check if the point dominates the approximate ideal point of the node (Property 2)
     elseif all(point.objectives .>= node.approxIdealPoint)
         # Remove node and its whole sub-tree
-        node.points = Pareto[]
-        node.children = NDTreeNode[]
+        # node.points = Pareto[]
+        # node.children = NDTreeNode[]
+        empty!(node.points)
+        empty!(node.children)
         return true
         # Check other conditions (Property 3)
     elseif any(node.approxIdealPoint .>= point.objectives) || any(point.objectives .>= node.approxNadirPoint)
@@ -56,7 +66,7 @@ function update_node!(node::NDTreeNode, point::Pareto)
                 end
             end
             # Remove all points dominated by the candidate point
-            node.points = setdiff(node.points, to_remove)
+            setdiff!(node.points, to_remove)
         else
             # If the node is an internal node, recursively check each child
             child_to_remove = NDTreeNode[]
@@ -68,14 +78,14 @@ function update_node!(node::NDTreeNode, point::Pareto)
                     push!(child_to_remove, child)
                 end
             end
-            node.children = setdiff(node.children, child_to_remove)
+            setdiff!(node.children, child_to_remove)
             # Check if there's only one child remaining
             if length(node.children) == 1
                 # Replace the current node with its single child
-                node.points = node.children[1].points
-                node.approxIdealPoint = node.children[1].approxIdealPoint
-                node.approxNadirPoint = node.children[1].approxNadirPoint
-                node.children = node.children[1].children
+                new_node = NDTreeNode(node.children[1].points, node.children[1].approxIdealPoint, node.children[1].approxNadirPoint, node.children[1].children, node.parent)
+                push!(node.parent.children, new_node)
+                setdiff!(node.parent.children, [node])
+                println("replace")
             end
         end
 
@@ -203,16 +213,16 @@ end
 
 
 function test()
-
-    tree = NDTreeNode(Pareto[], [], [], NDTreeNode[], nothing)
+    tree = NDTreeNode(Pareto[], [0, 0], [0, 0], NDTreeNode[], nothing)
     points = [Pareto([1, 1], [0, 0]), Pareto([1, 1], [1, -1])]
     # iteration from 4 to 1
-    for i in 2:-1:1
+    for i in 10:-1:1
         push!(points, Pareto([1, 1], [2^i, -2^i]))
     end
     for point in points
         update_archive!(tree, point)
     end
+    # println(tree)
     paretos = postorder_traversal(tree)
     println(paretos)
 

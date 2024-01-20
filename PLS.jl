@@ -73,7 +73,7 @@ end
 
 
 function init_solutions(S::Int, knapsack::MultiObjectiveKnapsack)
-    archive = NDTreeNode(Pareto[], [], [], NDTreeNode[], nothing)
+    archive = NDTreeNode(Pareto[], zeros(knapsack.dimension), zeros(knapsack.dimension), NDTreeNode[], nothing)
     weight_sets = knapsack.dimension == 2 ? generate_uniform_weights(S) : generate_random_weights(S, knapsack.dimension)
 
     for lambda in weight_sets
@@ -154,6 +154,15 @@ function generate_neighbors(p::Pareto, knapsack::MultiObjectiveKnapsack, L::Int)
     return neighbors
 end
 
+function pls(knapsack::MultiObjectiveKnapsack, init_soluation_num::Int, neighbor_num::Int)
+    """
+    The pareto local search algorithm.
+    """
+    archive = init_solutions(init_soluation_num, knapsack)
+    P = deepcopy(archive)
+    Pa = deepcopy(archive)
+
+end
 
 function test()
     knapsack = readfile("./Data/2KP200-TA-0.dat")
