@@ -9,4 +9,4 @@ Pkg.add("Distances")
 Pkg.add("StatsBase")
 Pkg.add("Combinatorics")
 Pkg.add("JLD2")
-
+Pkg.add("Plots")
