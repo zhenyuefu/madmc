@@ -25,7 +25,7 @@ end
 
 """Given a dict of PMR (pairwise max regrets), return a tuple (y, (regret, model)) where y is the solution that could make the decision-maker regret the most if they choose x, 'regret' is the amount of regret for choosing x instead of y, and the model (Linear Program) that was used to calculate this regret.
 """
-function max_regret(PMR::Dict, x::Pareto)
+function max_regret(PMR::Dict{Pareto,Dict{Pareto,Tuple{Float64,Model}}}, x::Pareto)
     mr = nothing
     for (y, value) in PMR[x]
         regret, model = value
@@ -54,7 +54,7 @@ function incremental_elicitation(p::Int, X::Vector{Pareto}, number_of_known_pref
     all_pairs_of_solutions = collect(combinations(X, 2))
     # random choice number_of_known_preferences pairs of solutions
     known_preferences = sample(all_pairs_of_solutions, number_of_known_preferences, replace=false)
-    preferences = []
+    preferences = Tuple{Pareto,Pareto}[]
     for (x, y) in known_preferences
         if is_preferred(weight, x.objectives, y.objectives)
             push!(preferences, (x, y))
@@ -95,11 +95,11 @@ finding the best question that most significantly reduces the weight space and t
 - `preferences::Array`: A list of pairs indicating the decision-maker's preferences between solutions in X.
 - `weight::Vector`: A list of weights for the decision-maker.
 """
-function one_question_elicitation(X::Vector{Pareto}, preferences::Vector{Any}, weight::Vector{Float64})
+function one_question_elicitation(X::Vector{Pareto}, preferences::Vector{Tuple{Pareto,Pareto}}, weight::Vector{Float64})
     p = length(weight)
-    PMR = Dict()
+    PMR = Dict{Pareto,Dict{Pareto,Tuple{Float64,Model}}}()
     for x in X
-        PMR[x] = Dict()
+        PMR[x] = Dict{Pareto,Tuple{Float64,Model}}()
     end
 
     for x in X
@@ -132,7 +132,7 @@ function one_question_elicitation(X::Vector{Pareto}, preferences::Vector{Any}, w
             end
         end
     end
-    MR = Dict()
+    MR = Dict{Pareto,Tuple{Pareto,Tuple{Float64,Model}}}()
     for x in X
         mr = max_regret(PMR, x)
         if !isnothing(mr)
@@ -180,9 +180,11 @@ end
 function test()
     X = Pareto[Pareto([1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0], [7767, 6782]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0], [7965, 5897]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0], [8030, 5164]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0], [6771, 6870]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0], [7406, 6823]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0], [7853, 6384])] # 示例解决方案
 
-    @time solution_optimal, num_question, value_optimal, weight = incremental_elicitation(2, X, 1)
+    @time solution_optimal_estimated, num_question, value_optimal, weight = incremental_elicitation(2, X, 1)
 
-    println("solution_optimal: ", solution_optimal)
+
+
+    println("solution_optimal_estimated: ", solution_optimal_estimated)
     println("num_question: ", num_question)
     println("value_optimal: ", value_optimal)
     println("weight: ", weight)
@@ -191,22 +193,26 @@ end
 
 function process_pareto_solutions(filename::String, number_of_known_preferences::Int, MMRlimit::Float64=0.001)
     # 首先，从文件中加载Pareto解决方案
-    X = load_pareto_solutions(filename*".txt")
+    X = load_pareto_solutions(filename * ".txt")
     p = length(X[1].objectives)
     # 随机生成一个权重向量
     weight = random_weight(p)
 
     # 执行增量澄清过程
-    solution_optimal, num_questions, value_optimal, weight = incremental_elicitation(p, X, number_of_known_preferences, MMRlimit, weight)
+    solution_optimal_estimated, num_questions, value_optimal, weight = incremental_elicitation(p, X, number_of_known_preferences, MMRlimit, weight)
+
+    solution_optimal, weight_sum = find_optimal_solution(X, weight)
+
 
     # 输出结果
-    println("Optimal Solution: ", solution_optimal.solution)
+    println("Optimal Solution Estimated: ", solution_optimal_estimated.objectives)
+    println("Optimal Solution: ", solution_optimal.objectives)
     println("Number of Questions: ", num_questions)
-    println("Value of Optimal Solution: ", value_optimal)
+    println("Value of Optimal Solution Estimated and OPT: ", value_optimal, "\t", weight_sum)
     println("Weight Vector: ", weight)
 
     # 将结果保存到文件
-    save_pareto_solution(filename*"_optimal.txt", solution_optimal, value_optimal, weight)
+    save_pareto_solution(filename * "_optimal.txt", solution_optimal_estimated, value_optimal, weight)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

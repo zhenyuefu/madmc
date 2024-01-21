@@ -127,7 +127,7 @@ function incremental_elicitation_choquet(p::Int, X::Array{Pareto}, number_of_kno
     all_pairs_of_solutions = collect(combinations(X, 2))
     # random choice number_of_known_preferences pairs of solutions
     known_preferences = sample(all_pairs_of_solutions, number_of_known_preferences, replace=false)
-    preferences = []
+    preferences = Tuple{Pareto,Pareto}[]
     for (x, y) in known_preferences
         if is_domine_choquet(cap, x, y)
             push!(preferences, (x, y))
@@ -155,7 +155,7 @@ function incremental_elicitation_choquet(p::Int, X::Array{Pareto}, number_of_kno
     return MMR[1], num_question, value_optimal, cap
 end
 
-function one_question_elicitation_choquet(X::Array{Pareto}, preferences::Array, cap::Capacity)
+function one_question_elicitation_choquet(X::Array{Pareto}, preferences::Array{Tuple{Pareto,Pareto}}, cap::Capacity)
     p = length(X[1].objectives)
     PMR = Dict{Pareto,Dict{Pareto,Tuple{Float64,Model}}}()
 
@@ -173,30 +173,30 @@ function one_question_elicitation_choquet(X::Array{Pareto}, preferences::Array, 
             E = collect(combinations(1:p))
             # E union Int[]
             pushfirst!(E, Int[])
-           
-            vars = Dict{Any,VariableRef}()
+
+            vars = Dict{Set{Int},VariableRef}()
             for A in E
                 vars[Set(A)] = @variable(model)
             end
 
             choquet_x = x.objectives[1]
             for (i, xi) in enumerate(x.objectives[2:p])
-                choquet_x += (xi - x.objectives[i]) * vars[Set(range(i+1, p))]
+                choquet_x += (xi - x.objectives[i]) * vars[Set(range(i + 1, p))]
             end
             choquet_y = y.objectives[1]
             for (i, yi) in enumerate(y.objectives[2:p])
-                choquet_y += (yi - y.objectives[i]) * vars[Set(range(i+1, p))]
+                choquet_y += (yi - y.objectives[i]) * vars[Set(range(i + 1, p))]
             end
 
             @objective(model, Max, choquet_y - choquet_x)
-            for (i, (x_pref, y_pref)) in enumerate(preferences)
+            for (x_pref, y_pref) in preferences
                 choquet_x_pref = x_pref.objectives[1]
-                for (j, xj) in enumerate(x_pref.objectives[2:p])
-                    choquet_x_pref += (xj - x_pref.objectives[j]) * vars[Set(range(j+1, p))]
+                for (i, xj) in enumerate(x_pref.objectives[2:p])
+                    choquet_x_pref += (xj - x_pref.objectives[i]) * vars[Set(range(i + 1, p))]
                 end
                 choquet_y_pref = y_pref.objectives[1]
-                for (j, yj) in enumerate(y_pref.objectives[2:p])
-                    choquet_y_pref += (yj - y_pref.objectives[j]) * vars[Set(range(j+1, p))]
+                for (i, yj) in enumerate(y_pref.objectives[2:p])
+                    choquet_y_pref += (yj - y_pref.objectives[i]) * vars[Set(range(i + 1, p))]
                 end
                 @constraint(model, choquet_x_pref >= choquet_y_pref)
             end
@@ -221,7 +221,7 @@ function one_question_elicitation_choquet(X::Array{Pareto}, preferences::Array, 
         end
     end
 
-    MR = Dict()
+    MR = Dict{Pareto,Tuple{Pareto,Tuple{Float64,Model}}}()
     for x in X
         mr = max_regret(PMR, x)
         if !isnothing(mr)
@@ -243,19 +243,31 @@ function one_question_elicitation_choquet(X::Array{Pareto}, preferences::Array, 
     elseif is_domine_choquet(cap, y_star, x_star)
         push!(preferences, (y_star, x_star))
     end
-
     return MMR
 
 end
 
+function find_optimal_solution_choquet(X::Vector{Pareto}, cap::Capacity)
+    val_choquets = [choquet_value(cap, x) for x in X]
+    index_opt = argmax(val_choquets)
+    return X[index_opt], val_choquets[index_opt]
+end
+
 function test()
-    X = Pareto[Pareto([1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0], [7767, 6782]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0], [7965, 5897]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0], [8030, 5164]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0], [6771, 6870]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0], [7406, 6823]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0], [7853, 6384])] # 示例解决方案
+    filename = "logs/PLS_results_20_3"
+    X = load_pareto_solutions(filename * ".txt")
+    p = length(X[1].objectives)
+    num_of_known_preferences = max(floor(Int, 0.2 * length(X)), p + 1)
 
-    @time solution_optimal, num_question, value_optimal, cap = incremental_elicitation_choquet(2, X, 1)
+    @time solution_optimal_estimated, num_question, value_optimal, cap = incremental_elicitation_choquet(p, X, num_of_known_preferences)
 
-    println("solution_optimal: ", solution_optimal)
+    solution_optimal, val_choquet = find_optimal_solution_choquet(X, cap)
+
+
+    println("solution optimal estimated: ", solution_optimal_estimated)
+    println("solution optimal: ", solution_optimal)
     println("num_question: ", num_question)
-    println("value_optimal: ", value_optimal)
+    println("value estimated and opt: ", value_optimal, "\t", val_choquet)
     println("cap: ", cap)
 end
 
