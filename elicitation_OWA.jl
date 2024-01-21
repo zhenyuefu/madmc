@@ -144,7 +144,7 @@ function optimal_solver_owa(knapsack::MultiObjectiveKnapsack, weight::Vector{Flo
 
     set_silent(model)
     optimize!(model)
-    print(solution_summary(model))
+    # print(solution_summary(model))
     result_num = result_count(model)
     results = Pareto[]
     wsums = Float64[]
