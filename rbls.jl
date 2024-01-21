@@ -32,7 +32,7 @@ function regret_base_local_search(knapsack::MultiObjectiveKnapsack, neighbor_lis
 end
 
 
-function main(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, list_size=4)
+function run_rbls(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, list_size=4)
     typename = ".dat"
     mkp = readfile(dirname * filename * typename, n, p)
     number_of_known_preferences = 5
@@ -55,5 +55,5 @@ function main(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, list_size=
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    main(n=90, p=2)
+    run_rbls(n=20, p=4)
 end

@@ -8,13 +8,6 @@ using Combinatorics
 include("MOKP.jl")
 include("elicitation_weighted.jl")
 
-struct Capacity
-    capacity::Dict{Set{Int},Float64}
-    p::Int
-
-    Capacity(p) = new(Dict{Set{Int},Float64}(), p)
-end
-
 function get_cap(cap::Capacity, x::Set{Int})
     return cap.capacity[x]
 end
@@ -111,7 +104,7 @@ of the decision-maker's preferences, "nb_pref_connues," are already known.
 - `Tuple`: Estimated optimal solution, the number of questions asked, 
   the value for the decision-maker of the estimated optimal solution, and the weights of the decision-maker.
 """
-function incremental_elicitation_choquet(p::Int, X::Array{Pareto}, number_of_known_preferences::Int; MMRlimit=0.1, cap=nothing)
+function incremental_elicitation_choquet(p::Int, X::Array{Pareto}, number_of_known_preferences::Int; MMRlimit=0.1, cap::Union{Capacity,Nothing}=nothing)
     if isnothing(cap)
         cap = random_convex_capacity(p)
     end
@@ -253,24 +246,32 @@ function find_optimal_solution_choquet(X::Vector{Pareto}, cap::Capacity)
     return X[index_opt], val_choquets[index_opt]
 end
 
-function test()
-    filename = "logs/PLS_results_20_3"
-    X = load_pareto_solutions(filename * ".txt")
+function run_choquet(path::String, filename::String, number_of_known_preferences::Int; MMRlimit::Float64=0.001)
+    mkp, X = read_pls_result(path, filename)
     p = length(X[1].objectives)
-    num_of_known_preferences = max(floor(Int, 0.2 * length(X)), p + 1)
-
-    @time solution_optimal_estimated, num_question, value_optimal, cap = incremental_elicitation_choquet(p, X, num_of_known_preferences)
-
-    solution_optimal, val_choquet = find_optimal_solution_choquet(X, cap)
 
 
-    println("solution optimal estimated: ", solution_optimal_estimated)
-    println("solution optimal: ", solution_optimal)
-    println("num_question: ", num_question)
-    println("value estimated and opt: ", value_optimal, "\t", val_choquet)
+    time_run = @elapsed solution_eli, num_questions, value_eli, cap = incremental_elicitation_choquet(p, X, number_of_known_preferences, MMRlimit=MMRlimit)
+
+    sopt, vopt = find_optimal_solution_choquet(X, cap)
+
+
+    println("Optimal Solution: ", sopt.objectives)
+    println("Optimal Solution estimated: ", solution_eli.objectives)
+    println("Number of Questions: ", num_questions)
+    println("value estimated and opt: ", value_eli, "\t", vopt)
     println("cap: ", cap)
+
+    save_elicitation_logs("logs_choquet/", "$(mkp.n)_$(p)", solution_eli, sopt, value_eli, vopt, cap, num_questions, time_run, number_of_known_preferences)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    test()
+    n = 40
+    p = 3
+    run_choquet("logs_pls/", "PLS_$(n)_$(p)", 5)
+    # for n in 20:10:100
+    #     for p in 3:3
+    #         run_choquet("logs_pls/", "PLS_$(n)_$(p)", 5)
+    #     end
+    # end
 end

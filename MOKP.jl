@@ -158,18 +158,18 @@ function save_elicitation_logs(path::String, filename_base::String, sopt_estimat
         write(file, "Value optimal: $value_optimal\n")
         write(file, "Solution optimal estimated: $(join(sopt_estimated.solution, ",")) | $(join(sopt_estimated.objectives, ","))\n")
         write(file, "Solution optimal: $(join(sopt.solution, ",")) | $(join(sopt.objectives, ","))\n")
-        write(file, "Weight: $(join(weight, ","))\n")
+        write(file, "Weight: $weight\n")
     end
 
     jldsave(fj; is_equal=is_equal, gap=gap, num_questions=num_questions, run_time=run_time, vopt_estimated=vopt_estimated, value_optimal=value_optimal, sopt_estimated=sopt_estimated, sopt=sopt, weight=weight)
 
 end
 
-function main()
+function test()
     knapsack = readfile("./Data/2KP200-TA-0.dat", 20, 3)
     println(knapsack)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    main()
+    test()
 end

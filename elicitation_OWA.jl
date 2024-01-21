@@ -9,7 +9,7 @@ using Gurobi
 include("MOKP.jl")
 include("elicitation_weighted.jl")
 
-function incremental_elicitation_OWA(p::Int, X::Array{Pareto}, number_of_known_preferences::Int; MMRlimit::Float64=0.001, weights=nothing)
+function incremental_elicitation_OWA(p::Int, X::Array{Pareto}, number_of_known_preferences::Int; MMRlimit::Float64=0.001, weights::Union{Vector{Float64},Nothing}=nothing)
     Xb = deepcopy(X)
     x_dict = Dict{Vector{Int},Pareto}()
     for x in X
@@ -48,13 +48,13 @@ function incremental_elicitation_OWA(p::Int, X::Array{Pareto}, number_of_known_p
 
     println("itération n°1")
     MMR = one_question_elicitation_OWA(Xb, preference, weights)
-    println("Question : \nx : $(MMR[1])\ny : $(MMR[2][1])\nregret : $(MMR[2][2][1])")
+    println("Question : \nx : $(MMR[1].objectives)\ny : $(MMR[2][1].objectives)\nregret : $(MMR[2][2][1])")
     nb_question = 1
 
     while MMR[2][2][1] > MMRlimit
         println("\nitération n° $(nb_question + 1)\n")
         MMR = one_question_elicitation_OWA(Xb, preference, weights)
-        println("Question : \nx : $(MMR[1])\ny : $(MMR[2][1])\nregret : $(MMR[2][2][1])")
+        println("Question : \nx : $(MMR[1].objectives)\ny : $(MMR[2][1].objectives)\nregret : $(MMR[2][2][1])")
         nb_question += 1
     end
 
@@ -166,28 +166,36 @@ function test()
 
 end
 
-function process_pareto_solutions(filename::String, number_of_known_preferences::Int, MMRlimit::Float64=0.001)
+function run_owa(path::String, filename::String, number_of_known_preferences::Int; MMRlimit::Float64=0.001)
     # 首先，从文件中加载Pareto解决方案
-    X = load_pareto_solutions(filename * ".txt")
+    mkp, X = read_pls_result(path, filename)
     p = length(X[1].objectives)
 
     # 执行增量澄清过程
-    solution_optimal_estimated, num_questions, value_optimal, weight = incremental_elicitation_OWA(p, X, number_of_known_preferences)
+    time_run = @elapsed solution_eli, num_questions, value_optimal, weight = incremental_elicitation_OWA(p, X, number_of_known_preferences, MMRlimit=MMRlimit)
 
-    solution_optimal, weight_sum = get_solution_opt_OWA(X, weight)
+    sopt, vopt = get_solution_opt_OWA(X, weight)
 
     # 输出结果
-    println("Optimal Solution: ", solution_optimal.objectives)
-    println("Optimal Solution estimated: ", solution_optimal_estimated.objectives)
+    println("Optimal Solution: ", sopt.objectives)
+    println("Optimal Solution estimated: ", solution_eli.objectives)
     println("Number of Questions: ", num_questions)
-    println("Value of Optimal Solution: ", value_optimal)
+    println("Value of elicitation and optimal: ", value_optimal, "\t", vopt)
     println("Weight Vector: ", weight)
 
     # 将结果保存到文件
-    save_pareto_solution(filename * "_OWA_optimal.txt", solution_optimal_estimated, value_optimal, weight)
+    save_elicitation_logs("logs_owa/", "$(mkp.n)_$(p)", solution_eli, sopt, value_optimal, vopt, weight, num_questions, time_run, number_of_known_preferences)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     # test()
-    process_pareto_solutions("logs/PLS_results_20_3", 5)
+    n = 40
+    p = 2
+    run_owa("logs_pls/", "PLS_$(n)_$(p)", 5)
+    # for n in 40:10:100
+    #     # for p in 2:3
+    #     p = 3
+    #     run_owa("logs_pls/", "PLS_$(n)_$(p)", 5)
+    #     # end
+    # end
 end

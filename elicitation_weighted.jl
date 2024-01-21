@@ -42,7 +42,7 @@ end
 """
 Allows for the incremental elicitation of the preferences of a randomly chosen decision-maker whose preferences are represented by a weighted sum. It is assumed that we know a number of the decision-maker's preferences.
 """
-function incremental_elicitation(p::Int, X::Vector{Pareto}, number_of_known_preferences::Int, MMRlimit::Float64=0.001, weight=nothing)
+function incremental_elicitation(p::Int, X::Vector{Pareto}, number_of_known_preferences::Int; MMRlimit::Float64=0.001, weight::Union{Vector{Float64},Nothing}=nothing)
     if isnothing(weight)
         weight = random_weight(p)
     end
@@ -63,18 +63,21 @@ function incremental_elicitation(p::Int, X::Vector{Pareto}, number_of_known_pref
         end
     end
 
+    println("itération n°1")
     MMR = one_question_elicitation(X, preferences, weight)
 
     if isnothing(MMR)
         return X[1], 0, wsum(X[1].objectives, weight), weight
     end
 
+    println("Question : \nx : $(MMR[1].objectives)\ny : $(MMR[2][1].objectives)\nregret : $(MMR[2][2][1])")
     num_question = 1
 
     while (MMR[2][2][1] > MMRlimit)
         num_question += 1
-        # println("iteration: ", num_question)
+        println("iteration: ", num_question)
         MMR = one_question_elicitation(X, preferences, weight)
+        println("Question : \nx : $(MMR[1].objectives)\ny : $(MMR[2][1].objectives)\nregret : $(MMR[2][2][1])")
     end
 
     value_optimal = wsum(MMR[1].objectives, weight)
@@ -159,63 +162,86 @@ function one_question_elicitation(X::Vector{Pareto}, preferences::Vector{Tuple{P
     return MMR
 end
 
-"""
-Returns the optimal solution when the decision-maker's preferences are 
-modeled by a weighted sum.
+# """
+# Returns the optimal solution when the decision-maker's preferences are 
+# modeled by a weighted sum.
 
-# Parameters
-- `X::Vector`: A list of all potentially Pareto optimal solutions found with PLS.
-- `weight::Vector`: A vector of weights for the decision-maker.
+# # Parameters
+# - `X::Vector`: A list of all potentially Pareto optimal solutions found with PLS.
+# - `weight::Vector`: A vector of weights for the decision-maker.
 
-# Returns
-- `Tuple`: A tuple in the form of (optimal solution, value of the optimal solution for the decision-maker).
-"""
-function find_optimal_solution(X::Vector{Pareto}, weight::Vector{Float64})
-    weighted_sums = [wsum(x.objectives, weight) for x in X]
-    index = argmax(weighted_sums)
-    return X[index], weighted_sums[index]
+# # Returns
+# - `Tuple`: A tuple in the form of (optimal solution, value of the optimal solution for the decision-maker).
+# """
+# function find_optimal_solution(X::Vector{Pareto}, weight::Vector{Float64})
+#     weighted_sums = [wsum(x.objectives, weight) for x in X]
+#     index = argmax(weighted_sums)
+#     return X[index], weighted_sums[index]
+# end
+
+
+function optimal_solver_wsum(knapsack::MultiObjectiveKnapsack, weight::Vector{Float64})
+    model = Model()
+    @variable(model, x[1:knapsack.n], Bin)
+    @expression(model, objective_exp, sum(knapsack.items[i].values' * weight * x[i] for i in 1:knapsack.n))
+    @objective(model, Max, objective_exp)
+    @constraint(model, sum(knapsack.items[i].weight * x[i] for i in 1:knapsack.n) <= knapsack.capacity)
+    set_optimizer(model, COPT.Optimizer)
+
+    set_silent(model)
+    optimize!(model)
+    # print(solution_summary(model))
+    result_num = result_count(model)
+    results = Pareto[]
+    wsums = Float64[]
+    for i in 1:result_num
+        solution = value.(x; result=i)
+        obj = sum(knapsack.items[i].values * solution[i] for i in 1:knapsack.n)
+        push!(results, Pareto(solution, obj))
+        push!(wsums, objective_value(model; result=i))
+    end
+    return results, wsums
 end
 
-
-function test()
-    X = Pareto[Pareto([1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0], [7767, 6782]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0], [7965, 5897]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0], [8030, 5164]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0], [6771, 6870]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0], [7406, 6823]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0], [7853, 6384])] # 示例解决方案
-
-    @time solution_optimal_estimated, num_question, value_optimal, weight = incremental_elicitation(2, X, 1)
-
-
-
-    println("solution_optimal_estimated: ", solution_optimal_estimated)
-    println("num_question: ", num_question)
-    println("value_optimal: ", value_optimal)
-    println("weight: ", weight)
-
-end
-
-function process_pareto_solutions(filename::String, number_of_known_preferences::Int, MMRlimit::Float64=0.001)
+function run_wsum(path::String, filename::String, number_of_known_preferences::Int; MMRlimit::Float64=0.001)
     # 首先，从文件中加载Pareto解决方案
-    X = load_pareto_solutions(filename * ".txt")
+    mkp, X = read_pls_result(path, filename)
     p = length(X[1].objectives)
-    # 随机生成一个权重向量
-    weight = random_weight(p)
 
-    # 执行增量澄清过程
-    solution_optimal_estimated, num_questions, value_optimal, weight = incremental_elicitation(p, X, number_of_known_preferences, MMRlimit, weight)
+    time_run = @elapsed solution_eli, num_questions, value_eli, weight = incremental_elicitation(p, X, number_of_known_preferences; MMRlimit=MMRlimit)
 
-    solution_optimal, weight_sum = find_optimal_solution(X, weight)
+    # solution_optimal, weight_sum = find_optimal_solution(X, weight)
 
+    opts, wsums = optimal_solver_wsum(mkp, weight)
+    i = argmax(wsums)
+    solution_optimal = opts[i]
+    weight_sum = wsums[i]
 
     # 输出结果
-    println("Optimal Solution Estimated: ", solution_optimal_estimated.objectives)
+    println("Solution incremental elicitation: ", solution_eli.objectives)
     println("Optimal Solution: ", solution_optimal.objectives)
     println("Number of Questions: ", num_questions)
-    println("Value of Optimal Solution Estimated and OPT: ", value_optimal, "\t", weight_sum)
+    println("Value of elicitation and OPT: ", value_eli, "\t", weight_sum)
     println("Weight Vector: ", weight)
 
+    is_equal = isequal(solution_eli.solution, solution_optimal.solution)
+    println("Is equal: ", is_equal)
+    gap = (weight_sum - value_eli) / value_eli
+    println("Gap: ", gap)
+
+
     # 将结果保存到文件
-    save_pareto_solution(filename * "_optimal.txt", solution_optimal_estimated, value_optimal, weight)
+    save_elicitation_logs("logs_wsum/", "$(mkp.n)_$(p)", solution_eli, solution_optimal, value_eli, weight_sum, weight, num_questions, time_run, number_of_known_preferences)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    # test()
-    process_pareto_solutions("logs/PLS_results_20_3", 5)
+    n = 100
+    p = 2
+    run_wsum("logs_pls/", "PLS_$(n)_$(p)", 5)
+    # for n in 50:10:80
+    #     for p in 3:3
+    #         # p = 2
+    #         run_wsum("logs_pls/", "PLS_$(n)_$(p)", 5)
+    #     end
+    # end
 end

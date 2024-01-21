@@ -179,7 +179,7 @@ function pls(knapsack::MultiObjectiveKnapsack, init_soluation_num::Int, neighbor
 end
 
 
-function main(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, init_soluation_num=10, list_size=4)
+function run_pls(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, init_soluation_num=10, list_size=4)
 
     typename = ".dat"
     knapsack = readfile(dirname * filename * typename, n, p)
@@ -207,10 +207,10 @@ function main(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, init_solua
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    # for n in 40:10:100
+    # for n in 20:10:30
     #     for p in 2:4
-    #         main(n=n, p=p)
+    #         run_pls(n=n, p=p)
     #     end
     # end
-    main(n=80, p=3)
+    run_pls(n=80, p=3)
 end
