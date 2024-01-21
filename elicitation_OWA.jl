@@ -95,10 +95,10 @@ function one_question_elicitation_OWA(X::Array{Pareto}, preference::Array{Tuple{
 
                 optimize!(model)
 
-                if termination_status(model) == INFEASIBLE
-                    println("Model is infeasible")
-                elseif termination_status(model) == OPTIMAL
+                if termination_status(model) == OPTIMAL
                     PMR[x][y] = (objective_value(model), model)
+                else
+                    println(termination_status(model))
                 end
             end
         end
@@ -133,48 +133,42 @@ function one_question_elicitation_OWA(X::Array{Pareto}, preference::Array{Tuple{
     return MMR
 end
 
-function get_solution_opt_OWA(X::Array{Pareto}, weight::Array{Float64,1})
-    """
-    返回决策者的最优解，这里假设决策者的偏好通过OWA来表示。
-    参数:
-    - X: 一个数组，包含所有可能的Pareto最优解。
-    - poids_decideur: 决策者的权重数组。
+function optimal_solver_owa(knapsack::MultiObjectiveKnapsack, weight::Vector{Float64})
+    sort!(weight, rev=true)
+    model = Model()
+    @variable(model, x[1:knapsack.n], Bin)
+    objectives = sum(knapsack.items[i].values * x[i] for i in 1:knapsack.n)
+    @objective(model, Max, weight' * objectives)
+    @constraint(model, sum(knapsack.items[i].weight * x[i] for i in 1:knapsack.n) <= knapsack.capacity)
+    set_optimizer(model, COPT.Optimizer)
 
-    返回值:
-    - 一个元组，包含最优解及其对于决策者的价值。
-    """
-    # 确保每个解都是排序后的
-    Xb = deepcopy(X)
-    for x in Xb
-        sort!(x.objectives)
+    set_silent(model)
+    optimize!(model)
+    print(solution_summary(model))
+    result_num = result_count(model)
+    results = Pareto[]
+    wsums = Float64[]
+    for i in 1:result_num
+        solution = value.(x; result=i)
+        objectives = sum(knapsack.items[i].values * solution[i] for i in 1:knapsack.n)
+        push!(results, Pareto(solution, objectives))
+        push!(wsums, objective_value(model; result=i))
     end
-
-    weighted_sums = [wsum(x.objectives, weight) for x in Xb]
-    index = argmax(weighted_sums)
-    return X[index], weighted_sums[index]
+    return results, wsums
 end
 
-function test()
-    X = Pareto[Pareto([1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0], [7767, 6782]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0], [7965, 5897]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0], [8030, 5164]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0], [6771, 6870]), Pareto([1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0], [7406, 6823]), Pareto([1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0], [7853, 6384])] # 示例解决方案
-
-    @time solution_optimal_estimated, num_question, value_optimal, weight = incremental_elicitation_OWA(2, X, 1)
-
-    println("solution_optimal: ", solution_optimal_estimated)
-    println("num_question: ", num_question)
-    println("value_optimal: ", value_optimal)
-    println("weight: ", weight)
-
-end
 
 function run_owa(path::String, filename::String, number_of_known_preferences::Int; MMRlimit::Float64=0.001)
     # 首先，从文件中加载Pareto解决方案
     mkp, X = read_pls_result(path, filename)
     p = length(X[1].objectives)
 
-    # 执行增量澄清过程
     time_run = @elapsed solution_eli, num_questions, value_optimal, weight = incremental_elicitation_OWA(p, X, number_of_known_preferences, MMRlimit=MMRlimit)
 
-    sopt, vopt = get_solution_opt_OWA(X, weight)
+    opts, wsums = optimal_solver_owa(mkp, weight)
+    i = argmax(wsums)
+    sopt = opts[i]
+    vopt = wsums[i]
 
     # 输出结果
     println("Optimal Solution: ", sopt.objectives)
@@ -188,14 +182,12 @@ function run_owa(path::String, filename::String, number_of_known_preferences::In
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    # test()
     n = 40
     p = 2
     run_owa("logs_pls/", "PLS_$(n)_$(p)", 5)
-    # for n in 40:10:100
-    #     # for p in 2:3
-    #     p = 3
-    #     run_owa("logs_pls/", "PLS_$(n)_$(p)", 5)
-    #     # end
+    # for n in 20:10:100
+    #     for p in 2:2
+    #         run_owa("logs_pls/", "PLS_$(n)_$(p)", 5)
+    #     end
     # end
 end
