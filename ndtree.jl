@@ -14,7 +14,7 @@ end
 
 const MAX_LEAF_SIZE = 20
 # objectives dimension + 1
-const REQUIRED_CHILDREN_COUNT = 7
+const REQUIRED_CHILDREN_COUNT = 4
 
 # Algorithm 3: ND-Tree-based update
 function update_archive!(archive::NDTreeNode, point::Pareto)
@@ -82,10 +82,31 @@ function update_node!(node::NDTreeNode, point::Pareto)
             # Check if there's only one child remaining
             if length(node.children) == 1
                 # Replace the current node with its single child
-                new_node = NDTreeNode(node.children[1].points, node.children[1].approxIdealPoint, node.children[1].approxNadirPoint, node.children[1].children, node.parent)
-                push!(node.parent.children, new_node)
-                setdiff!(node.parent.children, [node])
-                println("replace")
+                new_points = node.children[1].points
+                new_approxIdealPoint = node.children[1].approxIdealPoint
+                new_approxNadirPoint = node.children[1].approxNadirPoint
+                new_children = node.children[1].children
+                new_node = NDTreeNode(new_points, new_approxIdealPoint, new_approxNadirPoint, new_children, node.parent)
+                if !isnothing(node.parent)
+                    push!(node.parent.children, new_node)
+                    setdiff!(node.parent.children, [node])
+                else
+                    for i in 1:length(new_node.approxIdealPoint)
+                        node.approxIdealPoint[i] = new_node.approxIdealPoint[i]
+                        node.approxNadirPoint[i] = new_node.approxNadirPoint[i]
+                    end
+
+                    empty!(node.points)
+                    empty!(node.children)
+                    for child in new_node.children
+                        push!(node.children, child)
+                    end
+                    for point in new_node.points
+                        push!(node.points, point)
+                    end
+                    println("replace root")
+                end
+                # println("replace")
             end
         end
 

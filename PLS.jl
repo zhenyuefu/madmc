@@ -177,7 +177,12 @@ function pls(knapsack::MultiObjectiveKnapsack, init_soluation_num::Int, neighbor
 end
 
 function test()
-    knapsack = readfile("./Data/200_items/2KP200-TA-9.dat")
+    dirname = "./Data/"
+    filename = "2KP200-TA-0"
+    typename = ".dat"
+    n = 20
+    p = 3
+    knapsack = readfile(dirname * filename * typename, n, p)
     # tree = init_solutions(10, knapsack)
     # s = postorder_traversal(tree)
     # neighbors = generate_neighbors(s[1], knapsack, 4)
@@ -193,16 +198,26 @@ function test()
     # s = postorder_traversal(tree)
     # println(length(s))
 
-    @time tree = pls(knapsack, 20, 5)
-    s = postorder_traversal(tree)
-    println(length(s))
-    # 将objective值保存到文件中
-    f = open("200_9.txt", "w")
-    for p in s
-        print(f, p.objectives[1], " ", p.objectives[2], "\n")
-    end
-    close(f)
+    time = @elapsed tree = pls(knapsack, 10, 5)
+    solutions = postorder_traversal(tree)
 
+    save_pareto_solutions("logs/PLS_results_$n" * "_$p.txt", solutions)
+    # 将objective值保存到文件中
+    # f = open("200_9.txt", "w")
+    # for p in s
+    #     print(f, p.objectives[1], " ", p.objectives[2], "\n")
+    # end
+    # close(f)
+
+end
+
+function test1()
+    solutions = load_pareto_solutions("logs/PLS_results_50_3.txt")
+    for sol in solutions
+        println("Solution: ", sol.solution)
+        println("Objectives: ", sol.objectives)
+        println()  # 打印空行以便分隔每个Pareto解
+    end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
