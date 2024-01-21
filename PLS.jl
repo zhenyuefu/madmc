@@ -9,7 +9,6 @@ using LinearAlgebra
 
 
 include("exhaustive_search.jl")
-# include("slover.jl")
 
 
 function R1(lambda::Vector{Float64}, item::Item, current_capacity::Int, capacity::Int)
@@ -87,9 +86,9 @@ end
 
 function generate_neighbors(p::Pareto, knapsack::MultiObjectiveKnapsack, L::Int)
     # L1: 物品候选移除列表
-    L1 = []
+    L1 = Tuple{Int,Float64}[]
     # L2: 物品候选添加列表
-    L2 = []
+    L2 = Tuple{Int,Float64}[]
     solution = p.solution
 
     current_capacity = sum(item.weight for (index, item) in enumerate(knapsack.items) if solution[index] == 1)
@@ -122,14 +121,14 @@ function generate_neighbors(p::Pareto, knapsack::MultiObjectiveKnapsack, L::Int)
     sort!(L2, by=x -> x[2], rev=true)
 
     # 从L1和L2中选取前L个物品
-    L1 = [x[1] for x in L1[1:L]]
-    L2 = [x[1] for x in L2[1:L]]
-    residual_index = [L1; L2]
+    L1_index = [x[1] for x in L1[1:L]]
+    L2_index = [x[1] for x in L2[1:L]]
+    residual_index = [L1_index; L2_index]
     residual_items = [knapsack.items[i] for i in residual_index]
-    value_l1 = sum(knapsack.items[i].values for i in L1)
+    value_l1 = sum(knapsack.items[i].values for i in L1_index)
 
     # merge them to create the residual problem, composed of $(L * 2)$ items. The capacities $W$ of the residual problem are equal to $W -\sum_{\substack{i=1 \\ i \notin L 1}}^{n} w^{i} x_{i}$
-    residual_capacity = knapsack.capacity - sum(knapsack.items[i].weight * solution[i] for i in 1:knapsack.n if i ∉ L1)
+    residual_capacity = knapsack.capacity - sum(knapsack.items[i].weight * solution[i] for i in 1:knapsack.n if i ∉ L1_index)
     # 生成新的背包问题
     residual_knapsack = MultiObjectiveKnapsack(2 * L, knapsack.dimension, residual_capacity, residual_items)
 
@@ -176,12 +175,10 @@ function pls(knapsack::MultiObjectiveKnapsack, init_soluation_num::Int, neighbor
     return archive
 end
 
-function test()
-    dirname = "./Data/"
-    filename = "2KP200-TA-0"
+
+function main(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, init_soluation_num=10, list_size=4)
+
     typename = ".dat"
-    n = 20
-    p = 3
     knapsack = readfile(dirname * filename * typename, n, p)
     # tree = init_solutions(10, knapsack)
     # s = postorder_traversal(tree)
@@ -198,10 +195,13 @@ function test()
     # s = postorder_traversal(tree)
     # println(length(s))
 
-    time = @elapsed tree = pls(knapsack, 10, 5)
+    time = @elapsed tree = pls(knapsack, init_soluation_num, list_size)
     solutions = postorder_traversal(tree)
 
-    save_pareto_solutions("logs/PLS_results_$n" * "_$p.txt", solutions)
+
+    save_pls_logs("logs_pls/$(n)_$(p)/", "PLS_$(n)_$(p)", knapsack, solutions, time)
+
+    # save_pareto_solutions("logs/PLS_results_$n" * "_$p.txt", solutions)
     # 将objective值保存到文件中
     # f = open("200_9.txt", "w")
     # for p in s
@@ -211,7 +211,7 @@ function test()
 
 end
 
-function test1()
+function test_load()
     solutions = load_pareto_solutions("logs/PLS_results_50_3.txt")
     for sol in solutions
         println("Solution: ", sol.solution)
@@ -221,5 +221,6 @@ function test1()
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    test()
+    main(n=80, p=3)
+    # test_load()
 end

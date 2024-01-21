@@ -104,7 +104,7 @@ function update_node!(node::NDTreeNode, point::Pareto)
                     for point in new_node.points
                         push!(node.points, point)
                     end
-                    println("replace root")
+                    # println("replace root")
                 end
                 # println("replace")
             end
@@ -156,7 +156,7 @@ function update_ideal_nadir!(node::NDTreeNode, point::Pareto)
     end
 
     # If there's an update and the node is not the root, update the parent node
-    if updated && node.parent !== nothing
+    if updated && !isnothing(node.parent)
         update_ideal_nadir!(node.parent, point)
     end
 
