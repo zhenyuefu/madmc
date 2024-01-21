@@ -26,6 +26,12 @@ struct Pareto
     objectives::Vector{Int}
 end
 
+struct Capacity
+    capacity::Dict{Set{Int},Float64}
+    p::Int
+
+    Capacity(p) = new(Dict{Set{Int},Float64}(), p)
+end
 # 读取文件并解析数据
 function readfile(filename::String)
     n = 0
@@ -125,29 +131,38 @@ function read_pls_result(path::String, filename_base::String)
     return mkp, data["solutions"]
 end
 
-function load_pareto_solutions(filename::String)::Vector{Pareto}
-    solutions = Pareto[]
-    open(filename, "r") do f
-        for line in eachline(f)
-            # 使用 | 分隔解决方案和目标值
-            solution_str, objectives_str = split(line, " | ")
-            # 将字符串转换为整数数组
-            solution = parse.(Int, split(solution_str, ","))
-            objectives = parse.(Int, split(objectives_str, ","))
-            # 创建Pareto结构并添加到数组中
-            push!(solutions, Pareto(solution, objectives))
-        end
+function save_elicitation_logs(path::String, filename_base::String, sopt_estimated::Pareto, sopt::Pareto, vopt_estimated::Float64, value_optimal::Float64, weight::Union{Vector{Float64},Capacity}, num_questions::Int, run_time::Float64, number_of_known_preferences::Int)
+    if !isdir(path)
+        mkdir(path)
     end
-    return solutions
-end
 
-function save_pareto_solution(filename::String, pareto::Pareto, value_optimal::Float64, weight::Vector{Float64})
-    open(filename, "w") do f
-        write(f, "Solution: $(pareto.solution)\n")
-        write(f, "Objective Values: $(pareto.objectives)\n")
-        write(f, "Optimal Value: $value_optimal\n")
-        write(f, "Weights: $(weight)\n")
+    f = path * filename_base * ".log"
+    fj = path * filename_base * ".jld2"
+
+    if isfile(f)
+        t = string(now())
+        f = path * filename_base * "_" * t * ".log"
+        fj = path * filename_base * "_" * t * ".jld2"
     end
+
+    is_equal = isequal(sopt_estimated.solution, sopt.solution)
+    gap = (value_optimal - vopt_estimated) / value_optimal
+    open(f, "w") do file
+        write(file, "n p: $filename_base\n")
+        write(file, "Number of known preferences: $number_of_known_preferences\n")
+        write(file, "Is equal: $is_equal\n")
+        write(file, "Gap: $gap\n")
+        write(file, "Number of questions: $num_questions\n")
+        write(file, "Run time: $run_time s\n")
+        write(file, "Value optimal estimated: $vopt_estimated\n")
+        write(file, "Value optimal: $value_optimal\n")
+        write(file, "Solution optimal estimated: $(join(sopt_estimated.solution, ",")) | $(join(sopt_estimated.objectives, ","))\n")
+        write(file, "Solution optimal: $(join(sopt.solution, ",")) | $(join(sopt.objectives, ","))\n")
+        write(file, "Weight: $(join(weight, ","))\n")
+    end
+
+    jldsave(fj; is_equal=is_equal, gap=gap, num_questions=num_questions, run_time=run_time, vopt_estimated=vopt_estimated, value_optimal=value_optimal, sopt_estimated=sopt_estimated, sopt=sopt, weight=weight)
+
 end
 
 function main()

@@ -22,10 +22,10 @@ function R2(lambda::Vector{Float64}, item::Item)
 end
 
 
+"""
+The greedy heuristic to create a solution.
+"""
 function greedy_solution(knapsack::MultiObjectiveKnapsack, lambda::Vector{Float64})
-    """
-    The greedy heuristic to create a solution.
-    """
     solution = zeros(Int, knapsack.n)
     current_capacity = 0
     objective_values = zeros(Int, knapsack.dimension)
@@ -55,18 +55,21 @@ function greedy_solution(knapsack::MultiObjectiveKnapsack, lambda::Vector{Float6
     return solution, objective_values
 end
 
+"""
+Generate uniformly distributed weight sets for biobjective instances.
+"""
 function generate_uniform_weights(S::Int)
-    """
-    Generate uniformly distributed weight sets for biobjective instances.
-    """
+    if S == 1
+        return [[0.5, 0.5]]
+    end
     return [[i, 1 - i] for i in range(0, stop=1, length=S)]
 end
 
 
+"""
+Generate random weight sets for multiobjective instances.
+"""
 function generate_random_weights(S::Int, dimension::Int)
-    """
-    Generate random weight sets for multiobjective instances.
-    """
     return [normalize(rand(dimension)) for _ in 1:S]
 end
 
@@ -153,10 +156,10 @@ function generate_neighbors(p::Pareto, knapsack::MultiObjectiveKnapsack, L::Int)
     return neighbors
 end
 
+"""
+The pareto local search algorithm.
+"""
 function pls(knapsack::MultiObjectiveKnapsack, init_soluation_num::Int, neighbor_num::Int)
-    """
-    The pareto local search algorithm.
-    """
     archive = init_solutions(init_soluation_num, knapsack)
     P = postorder_traversal(archive)
     Pa = NDTreeNode(Pareto[], zeros(knapsack.dimension), zeros(knapsack.dimension), NDTreeNode[], nothing)
@@ -199,28 +202,15 @@ function main(; dirname="./Data/", filename="2KP200-TA-0", n=40, p=2, init_solua
     solutions = postorder_traversal(tree)
 
 
-    save_pls_logs("logs_pls/$(n)_$(p)/", "PLS_$(n)_$(p)", knapsack, solutions, time)
+    save_pls_logs("logs_pls/", "PLS_$(n)_$(p)", knapsack, solutions, time)
 
-    # save_pareto_solutions("logs/PLS_results_$n" * "_$p.txt", solutions)
-    # 将objective值保存到文件中
-    # f = open("200_9.txt", "w")
-    # for p in s
-    #     print(f, p.objectives[1], " ", p.objectives[2], "\n")
-    # end
-    # close(f)
-
-end
-
-function test_load()
-    solutions = load_pareto_solutions("logs/PLS_results_50_3.txt")
-    for sol in solutions
-        println("Solution: ", sol.solution)
-        println("Objectives: ", sol.objectives)
-        println()  # 打印空行以便分隔每个Pareto解
-    end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
+    # for n in 40:10:100
+    #     for p in 2:4
+    #         main(n=n, p=p)
+    #     end
+    # end
     main(n=80, p=3)
-    # test_load()
 end
